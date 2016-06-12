@@ -69,22 +69,18 @@
               (list "")
               (list* "|" (loop for i from percent-div to (- tips-count 2) collect space-symbol))))))
 
-(defun display-progress (percent-completed)
+(defun map-object-fields (model-symbol lambda)
+  "Maps all slots for MODEL-SYMBOL class using Weblocks CMS schema"
+  (let ((model-scheme-data 
+          (copy-tree 
+            (loop for i in (weblocks-cms::available-schemes-data weblocks-cms::*current-schema*) 
+                  do
+                  (when (equal model-symbol (intern (string-upcase (getf i :name)) "WEBLOCKS-CMS"))
+                    (return i))))))
 
-  (when (> percent-completed 1)
-    (error "Wrong percent, should be from 0 to 1"))
-
-  (let* ((tips-count 80)
-         (top-bottom-symbol "_")
-         (space-symbol " ")
-         (percent-actual (* percent-completed (* tips-count tips-count)))
-         (percent-div (ceiling percent-actual tips-count)))
-    (format t " ~{~A~}~%" (loop for i from 1 to tips-count collect (if (> i percent-div) space-symbol top-bottom-symbol)))
-    (format t "[~{~A~}~{~A~}]~%" 
-            (loop for i from 1 to percent-div collect (if (> i percent-div) space-symbol top-bottom-symbol))
-            (if (= percent-div tips-count)
-              (list "")
-              (list* "|" (loop for i from percent-div to (- tips-count 2) collect space-symbol))))))
+    (loop for i in (getf model-scheme-data :fields) do 
+          (let ((slot-name (intern (string-upcase (getf i :name)) :WEBLOCKS-CMS)))
+            (funcall lambda slot-name)))))
 
 (defun migrate-data-for-model-to-mongo (model-symbol &optional display-callback)
   "Copies data from table related to MODEL-SYMBOL to similar table <MODEL-SYMBOL>-BACKUP"
@@ -116,8 +112,15 @@
           (loop for item in (all-of model-symbol :store *game-republic-store*)
                 for items-count from 1 ;to 100
                 do 
-                (change-class item model-backup-symbol)
-                (persist-object *mongo-store* item)
+                (let ((new-item (make-instance model-backup-symbol)))
+                  (setf (object-id new-item) (object-id item))
+                  
+                  (map-object-fields 
+                    model-symbol 
+                    (lambda (field)
+                      (setf (slot-value new-item field) (slot-value item field))))
+
+                  (persist-object *mongo-store* new-item))
                 (display-total-progress (format nil ":~A" model-symbol) items-count all-items-count (object-id item))))))))
 
 (defun migrate-all-data-from-prevalence-to-mongo ()
