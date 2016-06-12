@@ -44,9 +44,9 @@
 (defun create-classes-for-mongo-models ()
   "For each data class of Weblocks CMS schema create mongo analog class with -debug suffix"
   (loop for i-orig in (weblocks-cms::available-schemes-data weblocks-cms::*current-schema*) do 
-        (setf i (copy-tree i-orig))
-        (setf (getf i :name) (intern (format nil "~A-BACKUP" (getf i :name)) "KEYWORD"))
-        (weblocks-cms::model-class-from-description :mongo i)))
+        (let ((i (copy-tree i-orig)))
+          (setf (getf i :name) (intern (format nil "~A-BACKUP" (getf i :name)) "KEYWORD"))
+          (weblocks-cms::model-class-from-description :mongo i))))
 
 (create-classes-for-mongo-models)
 
@@ -107,7 +107,7 @@
 
       (let ((all-items-count (length (all-of model-symbol :store *game-republic-store*))))
         (if (zerop all-items-count)
-          (display-total-progress (format nil ":~A" (getf i :name))
+          (display-total-progress (format nil ":~A" model-symbol)
                                   0 0 0)
           (loop for item in (all-of model-symbol :store *game-republic-store*)
                 for items-count from 1 ;to 100
@@ -125,8 +125,7 @@
 
 (defun migrate-all-data-from-prevalence-to-mongo ()
   (let ((scheme-data (weblocks-cms::available-schemes-data weblocks-cms::*current-schema*))
-        (model-symbol)
-        (i))
+        (model-symbol))
 
     (flet ((display-total-progress (model-name model-position total-models)
              ; Clearing screen
