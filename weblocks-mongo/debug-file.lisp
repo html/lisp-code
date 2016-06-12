@@ -143,6 +143,56 @@
               (lambda ()
                 (display-total-progress model-symbol j (length scheme-data))))))))
 
+(defun data-values-equal (value-1 value-2)
+  (and 
+    (equal (type-of value-1) (type-of value-2))
+    (etypecase value-1 
+      (string (string= value-1 value-2))
+      (integer (= value-1 value-2))
+      (standard-object  
+        (let ((id (object-id value-1)))
+          (if id 
+            (return-from data-values-equal 
+                         (and (equal (type-of value-1)
+                                     (type-of value-2))
+                              (= id (object-id value-2))))
+            (error "Not found ids for objects ~A ~A" value-1 value-2))))
+      (null t)
+      (boolean (equal value-1 value-2))
+      (t (error "~A ~A ~A~%" (type-of value-1) value-1 value-2)))))
+
+(defun test-data-migration-from-prevalence-to-mongo (model-symbol &optional display-callback)
+  (let ((original-data (all-of model-symbol :store *game-republic-store*))
+        (model-scheme-data 
+          (copy-tree 
+            (loop for i in (weblocks-cms::available-schemes-data weblocks-cms::*current-schema*) 
+                  do
+                  (when (equal model-symbol (intern (string-upcase (getf i :name)) "WEBLOCKS-CMS"))
+                    (return i)))))
+        (mongo-model-symbol (intern (format nil "~A-BACKUP" model-symbol) "WEBLOCKS-CMS")))
+
+    (assert (equal (length original-data) (weblocks-utils:count-of mongo-model-symbol :store *mongo-store*)))
+
+    (flet ((display-total-progress (model-name item-position total-items item-id)
+             ; Clearing screen
+             (if display-callback 
+               (funcall display-callback)
+               (format t "~A[H~@*~A[J" #\escape))
+             (format t "~%Processing item #~A (~A of ~A)~%" item-id item-position total-items)
+             (display-progress (if (zerop total-items) 0 (/ item-position total-items)))))
+
+      ; Across all records
+      (loop for i in original-data 
+            for j from 1 do 
+            (let ((analog-model-object (weblocks-stores:find-persistent-object-by-id *mongo-store* mongo-model-symbol (object-id i))))
+              ; Across all slots
+              (map-object-fields 
+                model-symbol 
+                (lambda (field)
+                  (data-values-equal (slot-value i field) (slot-value analog-model-object field))))
+
+              (display-total-progress (format nil ":~A" model-symbol) j (length original-data) (object-id i)))))))
+
 #|
 
 (weblocks-utils:find-by-values 
