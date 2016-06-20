@@ -15,3 +15,8 @@ Code for development of hu.dwim.perec backend for weblocks-stores
 ## profiling
 
 Profiling stuff for SBCL
+
+## time-estimator
+
+Simple code to get estimated time for some function
+Needs examples
